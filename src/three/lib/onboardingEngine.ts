@@ -1,11 +1,14 @@
 /**
- * Motor de la escena de bienvenida: las piezas del celular flotan dispersas,
- * se ensamblan, la pantalla se enciende con el isotipo/pulso de TallerPro y
- * cada paso (`stage`) mueve la composición de cámara.
+ * Motor de la escena de bienvenida (coreografía TallerPro): las piezas del
+ * celular giran en un anillo como en un carrusel de taller, se desprenden una a
+ * una en espiral y encajan con un "clic"; los tornillos entran atornillándose y
+ * la pantalla llega volteada y gira para cerrar. Luego se enciende con la
+ * palomita de TallerPro y cada paso (`stage`) mueve la cámara; en el paso "por
+ * dentro" el teléfono se abre en abanico.
  */
-import { Euler, Group, MathUtils, Mesh, MeshBasicMaterial, PerspectiveCamera, Quaternion, Scene, Vector3, type Object3D } from 'three';
+import { Group, MathUtils, Matrix4, Mesh, MeshBasicMaterial, PerspectiveCamera, Quaternion, Scene, Vector3, type Object3D } from 'three';
 import { Viewport } from './viewport';
-import { buildPhone, buildScrew, DISPLAY_ASPECT, EXPLODE_OFFSETS, LAYER_ORDER, PHONE, type LayerKey, type PhoneModel } from './phone';
+import { buildPhone, buildScrew, DISPLAY_ASPECT, fanLayerTransform, PHONE, type LayerKey, type PhoneModel } from './phone';
 import { ScreenPainter } from './screen';
 import type { ScreenData } from './screenData';
 import { addStudioLights, Bokeh, createGlow, createStudioEnvironment, setGlowTheme, type StudioEnv, type StudioLights } from './studio';
@@ -23,13 +26,19 @@ export interface OnboardingEngineOptions {
   onContextLost?: () => void;
 }
 
+type PartKind = 'layer' | 'screw' | 'lid';
+
 interface Part {
   obj: Object3D;
-  home: { pos: Vector3; quat: Quaternion };
-  scatter: { pos: Vector3; quat: Quaternion };
+  home: { pos: Vector3; quat: Quaternion; matrix: Matrix4 };
+  /** Ángulo de la pieza en el anillo (rad). */
+  angle: number;
+  /** Altura propia sobre el anillo (ondulación del carrusel). */
+  lift: number;
   delay: number;
   seed: number;
-  /** Capa cuyo desplazamiento de explosión sigue (para el paso "por dentro"). */
+  kind: PartKind;
+  /** Capa cuyo abanico sigue (para el paso "por dentro"). */
   follows: LayerKey | null;
 }
 
@@ -47,17 +56,22 @@ interface Composition {
 export const ONBOARDING_STAGES: Composition[] = [
   { yaw: -0.24, pitch: 0.06, roll: 0.03, explode: 0, side: 0, fill: 0.6, screen: 'boot' },
   { yaw: Math.PI + 0.55, pitch: 0.1, roll: -0.04, explode: 0, side: 0.2, fill: 0.62, screen: 'boot' },
-  { yaw: -0.66, pitch: 0.14, roll: 0.05, explode: 1, side: -0.17, fill: 0.56, screen: 'dashboard' },
+  { yaw: -0.3, pitch: 0.12, roll: 0.02, explode: 1, side: -0.17, fill: 0.56, screen: 'dashboard' },
   { yaw: -0.3, pitch: 0.05, roll: 0.03, explode: 0, side: 0.2, fill: 0.66, screen: 'dashboard' },
 ];
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 4);
 
-const T_FLOAT = 1.1; // s flotando antes de ensamblar
-const T_PART = 1.55; // duración del vuelo de cada pieza
-const T_STAGGER = 0.13;
+const T_ORBIT = 1.25; // s girando en el anillo antes del primer encaje
+const T_PART = 1.3; // duración de la espiral de cada pieza
+const T_STAGGER = 0.17;
 const T_BOOT = 1.5;
+/** Anillo del carrusel: radio, inclinación hacia la cámara, velocidad (rad/s) y escala de las piezas. */
+const RING = { radius: 6.2, tilt: 0.42, speed: 0.6, scale: 0.62 };
+const Y_AXIS = new Vector3(0, 1, 0);
+const X_AXIS = new Vector3(1, 0, 0);
+const Z_AXIS = new Vector3(0, 0, 1);
 
 export class OnboardingEngine {
   private vp: Viewport;
@@ -137,7 +151,7 @@ export class OnboardingEngine {
     if (import.meta.env.DEV) (host as HTMLElement & { __engine?: OnboardingEngine }).__engine = this;
 
     if (o.reducedMotion) this.skipToAssembled();
-    else this.applyScatter(0);
+    else this.applyAssembly(0);
     this.snapToTarget();
     whenFontsReady().then(() => {
       if (!this.disposed && this.screenMode !== 'off') this.drawScreen(true);
@@ -221,82 +235,101 @@ export class OnboardingEngine {
       root.add(wrap);
       screws.push(wrap);
     }
-    const order: [Object3D, LayerKey | null][] = [
-      [this.phone.layers.back, 'back'],
-      [camPart, 'back'],
-      [this.phone.layers.battery, 'battery'],
-      [this.phone.layers.board, 'board'],
-      ...screws.map((s) => [s, 'board'] as [Object3D, LayerKey]),
-      [this.phone.layers.frame, 'frame'],
-      [this.phone.layers.display, 'display'],
+    const order: [Object3D, LayerKey | null, PartKind][] = [
+      [this.phone.layers.back, 'back', 'layer'],
+      [camPart, 'back', 'layer'],
+      [this.phone.layers.battery, 'battery', 'layer'],
+      [this.phone.layers.board, 'board', 'layer'],
+      ...screws.map((s) => [s, 'board', 'screw'] as [Object3D, LayerKey, PartKind]),
+      [this.phone.layers.frame, 'frame', 'layer'],
+      [this.phone.layers.display, 'display', 'lid'],
     ];
-    const scatter: [number, number, number, number, number, number][] = [
-      [-1.2, -5.6, -3.2, 1.0, -0.3, 0.4],
-      [3.6, 4.4, 1.2, -0.6, 2.4, 0.3],
-      [5.4, -2.6, 0.8, -0.7, 0.6, -0.5],
-      [-5.6, -2.4, 0.4, 0.9, 0.4, 0.6],
-      [2.6, 0.6, 3.6, 1.2, 0.4, 0.0],
-      [-3.0, 1.2, 3.8, -0.8, 1.0, 0.5],
-      [1.2, -3.6, 3.4, 0.5, -1.2, 0.9],
-      [-1.2, 4.2, 3.0, 2.0, 0.3, -0.4],
-      [5.6, 2.8, -1.4, -0.4, -0.7, 0.35],
-      [-5.4, 2.6, 1.6, 0.25, 0.85, -0.22],
-    ];
-    order.forEach(([obj, follows], i) => {
-      const [x, y, z, rx, ry, rz] = scatter[i % scatter.length];
+    const n = order.length;
+    order.forEach(([obj, follows, kind], i) => {
+      // repartidas en el anillo, intercalando grandes y pequeñas
+      const slot = (i * 7) % n;
       this.parts.push({
         obj,
-        home: { pos: obj.position.clone(), quat: obj.quaternion.clone() },
-        scatter: {
-          pos: new Vector3(x, y, z),
-          quat: new Quaternion().setFromEuler(new Euler(rx, ry, rz)),
-        },
+        home: { pos: obj.position.clone(), quat: obj.quaternion.clone(), matrix: obj.matrix.clone() },
+        angle: (slot / n) * Math.PI * 2,
+        lift: Math.sin(i * 2.1) * 0.9,
         delay: i * T_STAGGER,
         seed: i * 1.731 + 0.4,
+        kind,
         follows,
       });
     });
-    this.assemblyEnd = T_FLOAT + (order.length - 1) * T_STAGGER + T_PART;
+    this.assemblyEnd = T_ORBIT + (n - 1) * T_STAGGER + T_PART;
   }
 
-  private applyScatter(time: number) {
-    const tmpQ = new Quaternion();
-    const wob = new Euler();
+  /** Instante en que la pieza `i` encaja en su lugar. */
+  private landTime(p: Part) {
+    return T_ORBIT + p.delay + T_PART;
+  }
+
+  private applyAssembly(time: number) {
+    const tilt = new Quaternion().setFromAxisAngle(X_AXIS, RING.tilt);
+    const q = new Quaternion();
+    const off = new Vector3();
     for (const p of this.parts) {
-      const local = time - T_FLOAT - p.delay;
-      const k = ease(MathUtils.clamp(local / T_PART, 0, 1));
-      // deriva mientras flota
-      const drift = 1 - k;
-      const s = p.seed;
-      p.obj.position.lerpVectors(p.scatter.pos, p.home.pos, k);
-      p.obj.position.x += Math.sin(time * 0.6 + s) * 0.22 * drift;
-      p.obj.position.y += Math.cos(time * 0.5 + s * 2) * 0.26 * drift;
-      p.obj.position.z += Math.sin(Math.PI * k) * 1.4;
-      wob.set(Math.sin(time * 0.4 + s) * 0.25 * drift, Math.cos(time * 0.33 + s) * 0.3 * drift, 0);
-      tmpQ.setFromEuler(wob);
-      p.obj.quaternion.copy(p.scatter.quat).multiply(tmpQ).slerp(p.home.quat, k);
+      const k = MathUtils.clamp((time - T_ORBIT - p.delay) / T_PART, 0, 1);
+      const e = ease(k);
+      const free = 1 - e;
+      // posición: carrusel inclinado que se cierra en espiral hacia su lugar
+      const ang = p.angle + time * RING.speed;
+      const r = RING.radius * free;
+      const bob = Math.sin(time * 1.4 + p.seed) * 0.18 * free;
+      off.set(Math.cos(ang) * r, (p.lift + bob) * free, Math.sin(ang) * r).applyQuaternion(tilt);
+      // "clic" al encajar: entra un poco de más y rebota
+      const click = Math.sin(Math.PI * MathUtils.clamp((k - 0.8) / 0.2, 0, 1));
+      off.z -= click * 0.22;
+      p.obj.position.copy(p.home.pos).add(off);
+      // orientación: de cara hacia afuera del anillo → orientación armada
+      q.setFromAxisAngle(Y_AXIS, Math.PI / 2 - ang).premultiply(tilt).multiply(p.home.quat);
+      p.obj.quaternion.copy(q).slerp(p.home.quat, e);
+      if (p.kind === 'screw') {
+        // se atornilla: varias vueltas sobre su eje mientras llega
+        p.obj.quaternion.multiply(q.setFromAxisAngle(Z_AXIS, free * Math.PI * 8));
+      } else if (p.kind === 'lid') {
+        // la pantalla llega volteada y gira para cerrar el teléfono
+        p.obj.quaternion.multiply(q.setFromAxisAngle(Y_AXIS, Math.PI * (1 - easeOut(k))));
+      }
+      p.obj.scale.setScalar(MathUtils.lerp(RING.scale, 1, e) * (1 + click * 0.05));
     }
   }
 
+  /** Suma de destellos breves cada vez que una pieza encaja (0..~1). */
+  private clickPulse(time: number) {
+    let v = 0;
+    for (const p of this.parts) {
+      const d = (time - this.landTime(p)) / 0.11;
+      if (d > -1 && d < 4) v += Math.exp(-d * d);
+    }
+    return Math.min(1, v);
+  }
+
   private applyExplode(amount: number) {
-    LAYER_ORDER.forEach((k, i) => {
-      const [x, y, z] = EXPLODE_OFFSETS[k];
-      const l = this.phone.layers[k];
-      l.position.set(x * amount, y * amount, z * amount);
-      l.rotation.set(0, (2 - i) * 0.045 * amount, 0);
-    });
+    this.phone.setExplode(amount);
+    const pos = new Vector3();
+    const quat = new Quaternion();
+    const layerM = new Matrix4();
+    const one = new Vector3(1, 1, 1);
+    const scale = new Vector3();
     const wrappers = Object.values(this.phone.layers) as Object3D[];
     for (const p of this.parts) {
-      if (!p.follows || wrappers.includes(p.obj)) continue;
-      const [x, y, z] = EXPLODE_OFFSETS[p.follows];
-      p.obj.position.copy(p.home.pos).add(new Vector3(x * amount, y * amount, z * amount));
-      p.obj.quaternion.copy(p.home.quat);
+      if (wrappers.includes(p.obj)) continue;
+      if (!p.follows) continue;
+      // las piezas sueltas (cámara, tornillos) viajan con su capa: M = capa · armado
+      fanLayerTransform(p.follows, amount, pos, quat);
+      layerM.compose(pos, quat, one).multiply(p.home.matrix);
+      layerM.decompose(p.obj.position, p.obj.quaternion, scale);
+      p.obj.scale.setScalar(1);
     }
   }
 
   private skipToAssembled() {
     this.clock = this.assemblyEnd + T_BOOT + 0.1;
-    this.applyScatter(this.clock);
+    this.applyAssembly(this.clock);
     this.phone.materials.display.emissiveIntensity = 1;
     this.bootDone = true;
     this.screenMode = 'off';
@@ -333,12 +366,12 @@ export class OnboardingEngine {
     const narrow = aspect < 0.85;
     const fill = narrow ? c.fill * 0.86 : c.fill;
     const halfH = (PHONE.H / 2 + 0.3 + c.explode * 1.3) / fill;
-    const halfW = (2.3 + c.explode * 1.9) / fill;
+    const halfW = (2.3 + c.explode * 2.3) / fill;
     let dist = Math.max(halfH / t, halfW / (t * aspect));
-    // al inicio, encuadre amplio para ver las piezas dispersas
-    const asm = this.o.reducedMotion ? 1 : easeOut(MathUtils.clamp((this.clock - T_FLOAT) / (this.assemblyEnd - T_FLOAT), 0, 1));
-    const scatterDist = Math.max(8.2 / t, 8.6 / (t * aspect));
-    dist = MathUtils.lerp(scatterDist, dist, asm);
+    // al inicio, encuadre amplio para ver el carrusel de piezas
+    const asm = this.o.reducedMotion ? 1 : easeOut(MathUtils.clamp((this.clock - T_ORBIT) / (this.assemblyEnd - T_ORBIT), 0, 1));
+    const ringDist = Math.max(7.4 / t, 8.6 / (t * aspect));
+    dist = MathUtils.lerp(ringDist, dist, asm);
     const viewW = 2 * dist * t * aspect;
     const viewH = 2 * dist * t;
     const wide = aspect > 1.15;
@@ -383,7 +416,7 @@ export class OnboardingEngine {
 
     // 1) ensamblaje
     const assembling = !reduced && time < this.assemblyEnd + 0.05;
-    if (assembling) this.applyScatter(time);
+    if (assembling) this.applyAssembly(time);
 
     // 2) encendido
     const m = this.phone.materials.display;
@@ -428,13 +461,13 @@ export class OnboardingEngine {
     p.y = reduced ? 0 : MathUtils.damp(p.y, p.ty, 2.5, dt);
     this.updateCamera();
 
-    // pulso de marca (latido) en el halo trasero
-    const beat = time % 2.4;
-    const hb = this.bootDone && !reduced ? Math.exp(-Math.pow(beat - 0.1, 2) * 90) + 0.6 * Math.exp(-Math.pow(beat - 0.42, 2) * 90) : 0;
+    // halo trasero: destello en cada encaje y, ya encendido, una respiración lenta
+    const clicks = !reduced && assembling ? this.clickPulse(time) : 0;
+    const breath = this.bootDone && !reduced ? 0.5 + 0.5 * Math.sin(time * 1.3) : 0;
     const gm = this.glow.material as MeshBasicMaterial;
     const on = this.bootDone ? 1 : MathUtils.clamp((time - this.assemblyEnd) / T_BOOT, 0, 1);
-    gm.opacity = (this.o.theme === 'light' ? 0.32 : 0.5) * (0.35 + 0.65 * on) + hb * 0.22;
-    this.glow.scale.setScalar(1 + hb * 0.06 + c.explode * 0.2);
+    gm.opacity = (this.o.theme === 'light' ? 0.32 : 0.5) * (0.35 + 0.65 * on) + clicks * 0.2 + breath * 0.08;
+    this.glow.scale.setScalar(1 + clicks * 0.08 + breath * 0.03 + c.explode * 0.2);
     this.nebula.forEach((n, i) => {
       n.position.x += Math.sin(time * 0.05 + i * 2) * 0.004;
       n.rotation.z = time * 0.01 * (i % 2 ? 1 : -1);

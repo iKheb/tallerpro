@@ -42,18 +42,14 @@ const { outputText } = ts.transpileModule(brandSrc, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 });
 const brand = await import('data:text/javascript;charset=utf-8,' + encodeURIComponent(outputText));
-const { brandMarkSVG, MARK, BRAND_GRADIENT } = brand;
+const { brandMarkSVG, brandGlyphSVG, HEX_PATH, BRAND_GRADIENT } = brand;
 
 /* ---------- 2. Composición de variantes a partir de MARK ---------- */
 const [ga, gb, gc] = BRAND_GRADIENT;
-const p = MARK.phone;
-const s = MARK.speaker;
 
-/** Glifo (celular + bocina + pulso) en coordenadas 0..64, color configurable. */
+/** Glifo (tuerca + celular + palomita) en coordenadas 0..64, color configurable. */
 function glyph(color = '#fff') {
-  return `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="${p.r}" fill="none" stroke="${color}" stroke-width="${p.stroke}"/>
-    <line x1="${s.x1}" y1="${s.y1}" x2="${s.x2}" y2="${s.y2}" stroke="${color}" stroke-width="2.4" stroke-linecap="round"/>
-    <polyline points="${MARK.pulse}" fill="none" stroke="${color}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>`;
+  return brandGlyphSVG(color, true);
 }
 
 function defs(stops = [ga, gb, gc]) {
@@ -83,13 +79,13 @@ function fullBleedSVG(size, glyphScale) {
 
 /** Badge monocromo: sólo el glifo, blanco, ampliado para leerse a 24 dp. */
 function badgeSVG(size) {
-  // El celular mide 43.2 u de alto (con trazo); lo llevamos a ~88 % del lienzo.
+  // La tuerca mide ~58 u de alto (con trazo); la llevamos a ~95 % del lienzo.
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 64 64">
-  ${scaled(1.3, glyph('#fff'))}
+  ${scaled(1.04, glyph('#fff'))}
 </svg>`;
 }
 
-/* ---------- Íconos de accesos directos (lucide, mismo estilo de marca) ---------- */
+/* ---------- Íconos de accesos directos (lucide sobre la tuerca de la marca) ---------- */
 async function lucideNode(name) {
   const file = path.join(root, 'node_modules/lucide-react/dist/esm/icons', `${name}.mjs`);
   const src = fs.readFileSync(file, 'utf8');
@@ -125,8 +121,8 @@ async function shortcutSVG(size, iconName, stops) {
   const k = 32 / 24;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 64 64">
   ${defs(stops)}
-  <rect width="64" height="64" rx="15" fill="url(#g)"/>
-  <rect width="64" height="64" rx="15" fill="url(#h)"/>
+  <path d="${HEX_PATH}" fill="url(#g)"/>
+  <path d="${HEX_PATH}" fill="url(#h)"/>
   <g transform="translate(16 16) scale(${k})" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${nodeToSVG(node)}</g>
 </svg>`;
 }

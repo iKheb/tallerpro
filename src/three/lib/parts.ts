@@ -199,7 +199,7 @@ function charger(m: PhoneMaterials) {
 function chip(m: PhoneMaterials) {
   const g = new Group();
   const body = new MeshStandardMaterial({ color: new Color('#15161b'), roughness: 0.5, metalness: 0.1 });
-  const top = new MeshStandardMaterial({ map: createChipLabel('RP-X1', 'TALLERPRO · 2646', true), roughness: 0.45 });
+  const top = new MeshStandardMaterial({ map: createChipLabel('TP-X1', 'TALLERPRO · 2646', true), roughness: 0.45 });
   mesh(new RoundedBoxGeometry(2.4, 2.4, 0.34, 2, 0.05), [body, body, body, body, top, body], g);
   const n = 9;
   const lead = new BoxGeometry(0.11, 0.42, 0.05);

@@ -5,7 +5,7 @@
  */
 import type { CanvasTexture } from 'three';
 import { BRAND, UI, FONT_SANS } from './palette';
-import { brandLinear, canvasTexture, drawBrandMark, hexToRgba, makeCanvas, rr, setTracking, type Ctx } from './canvas';
+import { brandHexPath, brandLinear, canvasTexture, drawBrandMark, hexToRgba, makeCanvas, rr, setTracking, type Ctx } from './canvas';
 
 import { DEFAULT_SCREEN, type ScreenData } from './screenData';
 
@@ -512,7 +512,7 @@ export class ScreenPainter {
     this.end();
   }
 
-  /** Pantalla de arranque: isotipo con pulso. `p` 0..1 progreso del trazo, `glow` 0..1. */
+  /** Pantalla de arranque: isotipo con palomita. `p` 0..1 progreso del trazo, `glow` 0..1. */
   drawBoot(p: number, glow = 1, wordmark = 1) {
     this.begin('#040508');
     const { ctx, dh } = this;
@@ -523,7 +523,7 @@ export class ScreenPainter {
     ctx.save();
     ctx.shadowColor = hexToRgba(BRAND.iris, 0.9 * glow);
     ctx.shadowBlur = 70;
-    rr(ctx, DW / 2 - s / 2, cy - s / 2, s, s, (s * 15) / 64);
+    brandHexPath(ctx, DW / 2 - s / 2, cy - s / 2, s);
     ctx.fillStyle = BRAND.blue;
     ctx.fill();
     ctx.restore();

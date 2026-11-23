@@ -1,6 +1,6 @@
 /**
  * Motor del HeroDevice (sin React): escena, cámara, teléfono, iluminación,
- * animación de "desarme", flotación y parallax del puntero.
+ * desarme en abanico, flotación y parallax del puntero.
  */
 import { Group, MathUtils, Mesh, MeshBasicMaterial, PerspectiveCamera, Scene } from 'three';
 import { Viewport } from './viewport';
@@ -28,12 +28,13 @@ const damp = (cur: number, target: number, lambda: number, dt: number) => MathUt
 const POSE = {
   hero: {
     assembled: { x: 0.07, y: -0.42, z: 0.045 },
-    exploded: { x: 0.16, y: -0.7, z: 0.07 },
+    // abierto en abanico: casi de frente para que se lean todas las capas
+    exploded: { x: 0.12, y: -0.24, z: 0 },
     fill: 0.88,
   },
   compact: {
     assembled: { x: 0.05, y: -0.32, z: 0.035 },
-    exploded: { x: 0.12, y: -0.62, z: 0.05 },
+    exploded: { x: 0.1, y: -0.2, z: 0 },
     fill: 0.9,
   },
 } as const;
@@ -288,8 +289,8 @@ export class HeroEngine {
     const aspect = width / height;
     this.camera.aspect = aspect;
     const P = POSE[this.o.variant];
-    const halfH = MathUtils.lerp(PHONE.H / 2 + 0.25, PHONE.H / 2 + 1.25, e) / P.fill;
-    const halfW = MathUtils.lerp(2.15, 3.85, e) / P.fill;
+    const halfH = MathUtils.lerp(PHONE.H / 2 + 0.25, PHONE.H / 2 + 0.75, e) / P.fill;
+    const halfW = MathUtils.lerp(2.15, 4.7, e) / P.fill;
     const t = Math.tan(MathUtils.degToRad(this.camera.fov / 2));
     const dist = Math.max(halfH / t, halfW / (t * aspect));
     this.camera.position.set(0, dist * 0.035, dist);
@@ -299,7 +300,7 @@ export class HeroEngine {
 
   private frame(dt: number, time: number) {
     const reduced = this.o.reducedMotion;
-    // explosión (lineal en el tiempo, suavizado por capa con escalonado)
+    // abanico (lineal en el tiempo, suavizado por capa con escalonado)
     if (reduced) this.explodeT = this.explodeTarget;
     else {
       const dir = Math.sign(this.explodeTarget - this.explodeT);

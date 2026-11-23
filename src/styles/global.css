@@ -397,7 +397,7 @@ html[data-scroll-locked] body {
   }
 }
 
-@keyframes tallerpro-pulse-draw {
+@keyframes tallerpro-check-draw {
   0% {
     stroke-dashoffset: 1;
   }

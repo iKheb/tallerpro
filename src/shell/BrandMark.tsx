@@ -1,19 +1,19 @@
 import { useId } from 'react';
-import { BRAND_GRADIENT, MARK } from '@/app/brand';
+import { BRAND_GRADIENT, HEX_PATH, MARK } from '@/app/brand';
 
 export interface BrandMarkProps {
   size?: number;
   className?: string;
-  /** Anima el trazo del pulso (splash). */
+  /** Anima el trazo de la palomita (splash). */
   animated?: boolean;
   title?: string;
 }
 
-/** Isotipo de TallerPro (celular con pulso) como SVG con degradado de marca. */
+/** Isotipo de TallerPro (tuerca hexagonal con celular reparado) como SVG con degradado de marca. */
 export function BrandMark({ size = 28, className, animated, title }: BrandMarkProps) {
   const uid = useId().replace(/:/g, '');
   const [a, b, c] = BRAND_GRADIENT;
-  const { tile: t, phone: p, speaker: s } = MARK;
+  const { phone: p, speaker: s } = MARK;
   return (
     <svg width={size} height={size} viewBox={MARK.viewBox} className={className} role={title ? 'img' : undefined} aria-label={title} aria-hidden={title ? undefined : true}>
       <defs>
@@ -27,20 +27,20 @@ export function BrandMark({ size = 28, className, animated, title }: BrandMarkPr
           <stop offset="1" stopColor="white" stopOpacity="0" />
         </radialGradient>
       </defs>
-      <rect x={t.x} y={t.y} width={t.w} height={t.h} rx={t.r} fill={`url(#g${uid})`} />
-      <rect x={t.x} y={t.y} width={t.w} height={t.h} rx={t.r} fill={`url(#h${uid})`} />
-      <rect x={t.x + 0.5} y={t.y + 0.5} width={t.w - 1} height={t.h - 1} rx={t.r - 0.5} fill="none" stroke="white" strokeOpacity=".18" />
+      <path d={HEX_PATH} fill={`url(#g${uid})`} />
+      <path d={HEX_PATH} fill={`url(#h${uid})`} />
+      <path d={HEX_PATH} fill="none" stroke="white" strokeOpacity=".18" />
       <rect x={p.x} y={p.y} width={p.w} height={p.h} rx={p.r} fill="none" stroke="white" strokeWidth={p.stroke} />
       <line x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} stroke="white" strokeWidth="2.4" strokeLinecap="round" />
       <polyline
-        points={MARK.pulse}
+        points={MARK.check}
         fill="none"
         stroke="white"
-        strokeWidth="2.8"
+        strokeWidth="3.2"
         strokeLinecap="round"
         strokeLinejoin="round"
         pathLength={1}
-        style={animated ? { strokeDasharray: 1, strokeDashoffset: 1, animation: 'tallerpro-pulse-draw 1.6s cubic-bezier(0.65,0,0.35,1) 0.15s infinite' } : undefined}
+        style={animated ? { strokeDasharray: 1, strokeDashoffset: 1, animation: 'tallerpro-check-draw 1.8s cubic-bezier(0.65,0,0.35,1) 0.15s infinite' } : undefined}
       />
     </svg>
   );

@@ -28,7 +28,7 @@ export interface BoardPart {
 export const BOARD_HOLE = { x: 0.765, y: 0.54, w: 1.45, h: 1.45, r: 0.3 };
 
 export const BOARD_PARTS: BoardPart[] = [
-  { kind: 'soc', x: -0.84, y: 0.6, w: 0.86, h: 0.86, z: 0.075, label: 'RP A1', ref: 'U1' },
+  { kind: 'soc', x: -0.84, y: 0.6, w: 0.86, h: 0.86, z: 0.075, label: 'TP A1', ref: 'U1' },
   { kind: 'shield', x: -0.84, y: -0.56, w: 1.22, h: 0.96, z: 0.05, ref: 'SH1' },
   { kind: 'chip', x: 0.42, y: -0.72, w: 0.6, h: 0.44, z: 0.05, label: 'NAND', ref: 'U7' },
   { kind: 'shield', x: 1.12, y: -0.5, w: 0.58, h: 0.48, z: 0.045, ref: 'SH2' },
@@ -241,7 +241,7 @@ function drawPcb(ctx: Ctx, W: number, H: number, pal: PcbPalette) {
   ctx.save();
   ctx.translate(X(-0.33), Y(0.02));
   ctx.rotate(-Math.PI / 2);
-  ctx.fillText('TALLERPRO RP-1 · REV B', 0, 0);
+  ctx.fillText('TALLERPRO TP-1 · REV B', 0, 0);
   ctx.restore();
   const qx = X(-0.43);
   const qy = Y(1.25);
@@ -267,7 +267,7 @@ export function createPcbTextures(size = 1024): { map: CanvasTexture; mr: Canvas
 
 /* ======================================================= Serigrafía de chips */
 
-export function createChipLabel(label: string, sub = 'RP · 2646', brand = false): CanvasTexture {
+export function createChipLabel(label: string, sub = 'TP · 2646', brand = false): CanvasTexture {
   const { canvas, ctx } = makeCanvas(256, 256);
   const g = ctx.createLinearGradient(0, 0, 256, 256);
   g.addColorStop(0, '#1a1b22');
@@ -411,7 +411,7 @@ export function createBatteryLabel(w = 640, h = 820): CanvasTexture {
   }
   ctx.fillStyle = UI.text3;
   ctx.font = `500 20px ${FONT_MONO}`;
-  ctx.fillText('RP-BAT-14P · 2026-11 · A', 46, 776);
+  ctx.fillText('TP-BAT-14P · 2026-11 · A', 46, 776);
   // sello
   ctx.strokeStyle = 'rgba(238,240,246,0.55)';
   ctx.lineWidth = 3;

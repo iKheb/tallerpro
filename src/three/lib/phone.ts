@@ -1,7 +1,7 @@
 /**
  * Smartphone premium modelado proceduralmente, separado en capas para la
- * vista explosionada: pantalla, marco de titanio, placa lógica, batería y
- * vidrio trasero con módulo de cámara triple.
+ * vista desarmada en abanico: pantalla, marco de titanio, placa lógica,
+ * batería y vidrio trasero con módulo de cámara triple.
  *
  * Unidades ≈ mm/20 (3.6 × 7.4 × 0.41). Frente = +Z.
  */
@@ -11,6 +11,7 @@ import {
   CircleGeometry,
   Color,
   CylinderGeometry,
+  Euler,
   Group,
   InstancedMesh,
   Matrix4,
@@ -19,10 +20,12 @@ import {
   MeshStandardMaterial,
   Object3D,
   PlaneGeometry,
+  Quaternion,
   RingGeometry,
   Shape,
   ShapeGeometry,
   SphereGeometry,
+  Vector3,
   type Material,
   type Texture,
 } from 'three';
@@ -67,14 +70,40 @@ export const DISPLAY_ASPECT = DISPLAY.w / DISPLAY.h;
 export type LayerKey = 'display' | 'frame' | 'board' | 'battery' | 'back';
 export const LAYER_ORDER: LayerKey[] = ['display', 'frame', 'board', 'battery', 'back'];
 
-/** Desplazamiento de cada capa en la vista explosionada (espacio local del teléfono). */
-export const EXPLODE_OFFSETS: Record<LayerKey, [number, number, number]> = {
-  display: [-0.62, -0.6, 2.2],
-  frame: [-0.22, -0.2, 1.0],
-  board: [0.12, 0.2, -0.1],
-  battery: [0.42, 0.5, -1.15],
-  back: [0.75, 0.82, -2.25],
+/**
+ * Desarme "en abanico" (sello de TallerPro): cada capa gira alrededor de un
+ * pivote en la base del teléfono, como un muestrario de colores, y se separa en
+ * profundidad para no chocar con las demás.
+ *  - `angle`: giro en el plano del teléfono (rad, + abre hacia la izquierda).
+ *  - `yaw`: leve giro vertical para que cada capa atrape la luz distinto.
+ *  - `depth` / `lift`: separación al frente/atrás y hacia arriba.
+ */
+export const FAN: Record<LayerKey, { angle: number; yaw: number; depth: number; lift: number }> = {
+  display: { angle: 0.36, yaw: 0.12, depth: 1.3, lift: 0.22 },
+  frame: { angle: 0.18, yaw: 0.06, depth: 0.65, lift: 0.12 },
+  board: { angle: 0, yaw: 0, depth: 0, lift: 0.55 },
+  battery: { angle: -0.18, yaw: -0.06, depth: -0.65, lift: 0.12 },
+  back: { angle: -0.36, yaw: -0.12, depth: -1.3, lift: 0.22 },
 };
+export const FAN_PIVOT = new Vector3(0, -PHONE.H / 2, 0);
+
+const _fanEuler = new Euler();
+const _fanPivot = new Vector3();
+
+/**
+ * Transformación de una capa abierta en abanico (`a` 0..1) respecto de su
+ * posición armada, en el espacio local del teléfono.
+ */
+export function fanLayerTransform(k: LayerKey, a: number, pos: Vector3, quat: Quaternion) {
+  const f = FAN[k];
+  _fanEuler.set(0, f.yaw * a, f.angle * a);
+  quat.setFromEuler(_fanEuler);
+  // girar alrededor del pivote: pos = P − R·P
+  _fanPivot.copy(FAN_PIVOT).applyQuaternion(quat);
+  pos.copy(FAN_PIVOT).sub(_fanPivot);
+  pos.y += f.lift * a;
+  pos.z += f.depth * a;
+}
 
 /* ============================================================ Materiales */
 
@@ -174,8 +203,8 @@ export function createPhoneMaterials(screen: Texture | null, opts: { pcbSize?: n
     antenna: () => new MeshStandardMaterial({ color: new Color('#34363c'), roughness: 0.55, metalness: 0 }),
     pcb: () => new MeshStandardMaterial({ map: pcbTex().map, roughnessMap: pcbTex().mr, metalnessMap: pcbTex().mr, roughness: 1, metalness: 1 }),
     chip: () => new MeshStandardMaterial({ color: new Color('#15161b'), roughness: 0.45, metalness: 0.15 }),
-    socTop: () => new MeshStandardMaterial({ map: createChipLabel('RP A1', 'RP · 2646', true), roughness: 0.42, metalness: 0.15 }),
-    nandTop: () => new MeshStandardMaterial({ map: createChipLabel('NAND', 'RP 256G'), roughness: 0.45, metalness: 0.15 }),
+    socTop: () => new MeshStandardMaterial({ map: createChipLabel('TP A1', 'TP · 2646', true), roughness: 0.42, metalness: 0.15 }),
+    nandTop: () => new MeshStandardMaterial({ map: createChipLabel('NAND', 'TP 256G'), roughness: 0.45, metalness: 0.15 }),
     shield: () => new MeshStandardMaterial({ color: new Color('#c9ccd4'), metalness: 1, roughness: 0.3 }),
     gold: () => new MeshStandardMaterial({ color: new Color('#d8ae5a'), metalness: 1, roughness: 0.25 }),
     pins: () => new MeshStandardMaterial({ map: createPinsTexture(), roughness: 0.4, metalness: 0.5 }),
@@ -505,7 +534,7 @@ export interface PhoneModel {
   layers: Record<LayerKey, Group>;
   screws: Group[];
   materials: PhoneMaterials;
-  /** Aplica la vista explosionada; `amounts` 0..1 por capa (en LAYER_ORDER). */
+  /** Abre las capas en abanico; `amounts` 0..1 por capa (en LAYER_ORDER). */
   setExplode(amounts: number[] | number): void;
 }
 
@@ -541,16 +570,15 @@ export function buildPhone(screen: Texture | null, opts: { pcbSize?: number } = 
   const setExplode = (amounts: number[] | number) => {
     LAYER_ORDER.forEach((k, i) => {
       const a = typeof amounts === 'number' ? amounts : (amounts[i] ?? 0);
-      const [x, y, z] = EXPLODE_OFFSETS[k];
-      layers[k].position.set(x * a, y * a, z * a);
-      // leve abanico entre capas
-      layers[k].rotation.set(0, (2 - i) * 0.045 * a, 0);
+      fanLayerTransform(k, a, layers[k].position, layers[k].quaternion);
     });
+    // los tornillos inferiores se desatornillan (giran) y se abren hacia los lados
     const af = typeof amounts === 'number' ? amounts : (amounts[1] ?? 0);
     screws.forEach((s, i) => {
       s.position.copy(screwBase[i]);
-      s.position.y -= 0.75 * af;
-      s.rotation.z = af * Math.PI * 3;
+      s.position.y -= 0.5 * af;
+      s.position.x += (i === 0 ? -1 : 1) * 0.32 * af;
+      s.rotation.z = af * Math.PI * 5;
     });
   };
   return { root, layers, screws, materials, setExplode };

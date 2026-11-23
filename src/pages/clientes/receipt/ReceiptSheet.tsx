@@ -15,7 +15,7 @@ import {
   Printer,
   ReceiptText,
 } from "lucide-react";
-import { MARK, BRAND_GRADIENT } from "@/app/brand";
+import { MARK, BRAND_GRADIENT, HEX_PATH } from "@/app/brand";
 import {
   buildReceiptText,
   updateClient,
@@ -262,7 +262,7 @@ function BrandMark({ size = 36 }: { size?: number }) {
           <stop offset="1" stopColor={BRAND_GRADIENT[2]} />
         </linearGradient>
       </defs>
-      <rect width="64" height="64" rx={MARK.tile.r} fill={`url(#${gid})`} />
+      <path d={HEX_PATH} fill={`url(#${gid})`} />
       <rect
         x={p.x}
         y={p.y}
@@ -283,10 +283,10 @@ function BrandMark({ size = 36 }: { size?: number }) {
         strokeLinecap="round"
       />
       <polyline
-        points={MARK.pulse}
+        points={MARK.check}
         fill="none"
         stroke="var(--paper-bg)"
-        strokeWidth="2.8"
+        strokeWidth="3.2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />

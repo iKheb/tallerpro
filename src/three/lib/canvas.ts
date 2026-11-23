@@ -2,7 +2,7 @@
  * Utilidades de dibujo en Canvas 2D para texturas procedurales.
  */
 import { CanvasTexture, LinearMipmapLinearFilter, LinearFilter, SRGBColorSpace, type Texture } from 'three';
-import { MARK } from '@/app/brand';
+import { MARK, roundedCorners } from '@/app/brand';
 import { BRAND } from './palette';
 
 export type Ctx = CanvasRenderingContext2D;
@@ -78,17 +78,46 @@ export function setTracking(ctx: Ctx, em: number, px: number) {
   if ('letterSpacing' in c) c.letterSpacing = `${(em * px).toFixed(2)}px`;
 }
 
+/** Traza (sin pintar) un polígono de la marca con esquinas redondeadas, en coordenadas 0..64. */
+function brandPolygon(ctx: Ctx, points: readonly (readonly [number, number])[], r: number) {
+  const corners = roundedCorners(points, r);
+  ctx.beginPath();
+  ctx.moveTo(corners[0].a[0], corners[0].a[1]);
+  for (const c of corners) {
+    ctx.lineTo(c.a[0], c.a[1]);
+    ctx.arcTo(c.p[0], c.p[1], c.b[0], c.b[1], r);
+  }
+  ctx.closePath();
+}
+
 /**
- * Dibuja el isotipo de TallerPro (teselas 64×64 de `MARK`) en (x,y) con tamaño `size`.
- * `pulse` (0..1) recorta el trazo del pulso para animarlo.
+ * Traza la silueta hexagonal del isotipo en (x,y) con tamaño `size` (para
+ * sombras o halos con la forma de la marca). Deja el trazo listo para `fill()`.
  */
-export function drawBrandMark(ctx: Ctx, x: number, y: number, size: number, pulse = 1, tile = true) {
+export function brandHexPath(ctx: Ctx, x: number, y: number, size: number) {
   const k = size / 64;
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(k, k);
+  brandPolygon(ctx, MARK.hex.points, MARK.hex.r);
+  ctx.restore();
+}
+
+/**
+ * Dibuja el isotipo de TallerPro (tuerca hexagonal + celular + palomita, teselas
+ * 64×64 de `MARK`) en (x,y) con tamaño `size`. `check` (0..1) recorta el trazo de
+ * la palomita para animarlo. Sin `tile`, la tuerca se dibuja como contorno.
+ */
+export function drawBrandMark(ctx: Ctx, x: number, y: number, size: number, check = 1, tile = true) {
+  const k = size / 64;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(k, k);
+  ctx.strokeStyle = '#fff';
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
   if (tile) {
-    rr(ctx, 0, 0, 64, 64, MARK.tile.r);
+    brandPolygon(ctx, MARK.hex.points, MARK.hex.r);
     ctx.fillStyle = brandLinear(ctx, 0, 0, 64, 64);
     ctx.fill();
     const h = ctx.createRadialGradient(20, 8, 0, 20, 8, 48);
@@ -96,11 +125,12 @@ export function drawBrandMark(ctx: Ctx, x: number, y: number, size: number, puls
     h.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = h;
     ctx.fill();
+  } else {
+    brandPolygon(ctx, MARK.ring.points, MARK.ring.r);
+    ctx.lineWidth = MARK.ring.stroke;
+    ctx.stroke();
   }
   const p = MARK.phone;
-  ctx.strokeStyle = '#fff';
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
   ctx.lineWidth = p.stroke;
   rr(ctx, p.x, p.y, p.w, p.h, p.r);
   ctx.stroke();
@@ -110,13 +140,13 @@ export function drawBrandMark(ctx: Ctx, x: number, y: number, size: number, puls
   ctx.moveTo(s.x1, s.y1);
   ctx.lineTo(s.x2, s.y2);
   ctx.stroke();
-  if (pulse > 0) {
-    const pts = MARK.pulse.split(' ').map((pr) => pr.split(',').map(Number) as [number, number]);
+  if (check > 0) {
+    const pts = MARK.check.split(' ').map((pr) => pr.split(',').map(Number) as [number, number]);
     // longitud total para recorte progresivo
     let total = 0;
     for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-    let remaining = total * Math.min(1, pulse);
-    ctx.lineWidth = 2.8;
+    let remaining = total * Math.min(1, check);
+    ctx.lineWidth = 3.2;
     ctx.beginPath();
     ctx.moveTo(pts[0][0], pts[0][1]);
     for (let i = 1; i < pts.length && remaining > 0; i++) {

@@ -1,5 +1,5 @@
 /* Recibo → PNG con canvas 2D (dibujo propio, sin html2canvas). Escala 2x. */
-import { BRAND_GRADIENT, MARK } from '@/app/brand';
+import { BRAND_GRADIENT, MARK, roundedCorners } from '@/app/brand';
 import type { Client, Settings } from '@/data';
 import { buildReceiptModel, PAPER, type ReceiptModel, type ReceiptPiece, type ReceiptRow } from './receiptModel';
 
@@ -71,7 +71,13 @@ function drawMark(ctx: Ctx, x: number, y: number, size: number) {
   g.addColorStop(1, BRAND_GRADIENT[2]);
   ctx.fillStyle = g;
   ctx.beginPath();
-  ctx.roundRect(0, 0, 64, 64, MARK.tile.r);
+  const corners = roundedCorners(MARK.hex.points, MARK.hex.r);
+  ctx.moveTo(corners[0].a[0], corners[0].a[1]);
+  for (const c of corners) {
+    ctx.lineTo(c.a[0], c.a[1]);
+    ctx.arcTo(c.p[0], c.p[1], c.b[0], c.b[1], MARK.hex.r);
+  }
+  ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = PAPER.paper;
   ctx.lineCap = 'round';
@@ -86,9 +92,9 @@ function drawMark(ctx: Ctx, x: number, y: number, size: number) {
   ctx.moveTo(MARK.speaker.x1, MARK.speaker.y1);
   ctx.lineTo(MARK.speaker.x2, MARK.speaker.y2);
   ctx.stroke();
-  ctx.lineWidth = 2.8;
+  ctx.lineWidth = 3.2;
   ctx.beginPath();
-  MARK.pulse.split(' ').forEach((pt, i) => {
+  MARK.check.split(' ').forEach((pt, i) => {
     const [px, py] = pt.split(',').map(Number);
     if (i === 0) ctx.moveTo(px, py);
     else ctx.lineTo(px, py);

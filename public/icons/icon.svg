@@ -7,9 +7,10 @@
       <stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
     </radialGradient>
   </defs>
-  <rect width="64" height="64" rx="15" fill="url(#g)"/>
-  <rect width="64" height="64" rx="15" fill="url(#h)"/>
-  <rect x="20.5" y="12" width="23" height="40" rx="6.5" fill="none" stroke="#fff" stroke-width="3.2"/>
-  <line x1="29" y1="17.5" x2="35" y2="17.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
-  <polyline points="24.5,33.5 28.5,33.5 31,27 34.5,40.5 37,31.5 39.5,33.5" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M28.5 3.02 A7 7 0 0 1 35.5 3.02 L55.35 14.48 A7 7 0 0 1 58.85 20.54 L58.85 43.46 A7 7 0 0 1 55.35 49.52 L35.5 60.98 A7 7 0 0 1 28.5 60.98 L8.65 49.52 A7 7 0 0 1 5.15 43.46 L5.15 20.54 A7 7 0 0 1 8.65 14.48 Z" fill="url(#g)"/>
+  <path d="M28.5 3.02 A7 7 0 0 1 35.5 3.02 L55.35 14.48 A7 7 0 0 1 58.85 20.54 L58.85 43.46 A7 7 0 0 1 55.35 49.52 L35.5 60.98 A7 7 0 0 1 28.5 60.98 L8.65 49.52 A7 7 0 0 1 5.15 43.46 L5.15 20.54 A7 7 0 0 1 8.65 14.48 Z" fill="url(#h)"/>
+  
+  <rect x="21.5" y="15" width="21" height="34" rx="5.5" fill="none" stroke="#fff" stroke-width="3.2"/>
+  <line x1="29" y1="20.5" x2="35" y2="20.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+  <polyline points="26.4,33.4 30.4,37.4 37.6,29.2" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
