@@ -266,7 +266,8 @@ export default function Onboarding() {
                         <strong>Funciona sin internet.</strong> Tus datos viven en este dispositivo.
                       </span>
                     </div>
-                    <Button type="button" variant="secondary" size="lg" fullWidth onClick={() => setCloudOpen(true)}>
+                    {/* En celular este acceso vive en la barra fija de abajo (ver .cloudInBar). */}
+                    <Button type="button" variant="secondary" size="lg" fullWidth className={styles.cloudInline} onClick={() => setCloudOpen(true)}>
                       ¿Ya usas TallerPro en otro dispositivo? Inicia sesión
                     </Button>
                   </>
@@ -408,7 +409,7 @@ export default function Onboarding() {
                 Atrás
               </Button>
             ) : (
-              <span />
+              <span className={styles.spacer} />
             )}
             <div className={styles.actionsRight}>
               {step === 2 && !granted && supported && permission !== 'denied' && (
@@ -426,6 +427,11 @@ export default function Onboarding() {
                 </Button>
               )}
             </div>
+            {step === 0 && (
+              <Button type="button" variant="ghost" size="md" fullWidth className={styles.cloudInBar} onClick={() => setCloudOpen(true)}>
+                ¿Ya usas TallerPro en otro dispositivo? Inicia sesión
+              </Button>
+            )}
           </div>
         </form>
       </div>

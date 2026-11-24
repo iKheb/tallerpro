@@ -14,7 +14,7 @@
    ========================================================================== */
 'use strict';
 
-const VERSION = '17d6c1ec89';
+const VERSION = '8ed3e4bd88';
 
 const PREFIX = 'tallerpro-';
 const SHELL_CACHE = PREFIX + 'shell-' + VERSION;
